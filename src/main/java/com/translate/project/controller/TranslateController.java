@@ -2,8 +2,11 @@ package com.translate.project.controller;
 
 
 
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.translate.project.helper.AWSTranslateHelper;
 import com.translate.project.service.S3UploadService;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,21 +27,13 @@ public class TranslateController {
     @PostMapping(
     path = "/translate",
     consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
-    produces = MediaType.APPLICATION_JSON_VALUE
+    produces = MediaType.TEXT_PLAIN_VALUE
     )
-    public ResponseEntity<String> saveTodo(@RequestParam("originalLang") String originalLang,
-                                           @RequestParam("translationLang") String translationLang,
-                                           @RequestParam("file") MultipartFile file) {
-//        return new ResponseEntity<>(uploadService.uploadFile(file.getOriginalFilename(), file), HttpStatus.OK);
-            String uploadResult = uploadService.uploadFile(file.getOriginalFilename(), file);
-            if(uploadResult.equals("SUCCESS")) {
-                String response = helper.translateDocument(originalLang, translationLang);
-//                if (response.equals("COMPLETED ") || response.equals("COMPLETED_WITH_ERROR ")) {
+    public ResponseEntity<?> saveTodo(@RequestParam("originalLang") String originalLang,
+                                             @RequestParam("translationLang") String translationLang,
+                                             @RequestParam("file") MultipartFile file) {
 //
-//                }
-
-                return new ResponseEntity<>(response, HttpStatus.OK);
-            }
-        return ResponseEntity.ok().build();
+        S3ObjectInputStream res= helper.getTranslatedFileUrl(file.getOriginalFilename(), file.getOriginalFilename(), translationLang);
+        return new ResponseEntity<>(res, HttpStatus.OK);
     }
 }
