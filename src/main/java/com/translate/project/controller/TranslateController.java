@@ -35,7 +35,14 @@ public class TranslateController {
                                              @RequestParam("translationLang") String translationLang,
                                              @RequestParam("file") MultipartFile file) {
 
-        S3ObjectInputStream res= helper.getTranslatedFileUrl(file.getOriginalFilename(), file.getOriginalFilename(), translationLang);
+        S3ObjectInputStream res = null;
+        String uploadResult = uploadService.uploadFile(file.getOriginalFilename(), file);
+
+        if(!uploadResult.isEmpty()) {
+            String translateJobStatus = helper.translateDocument(originalLang, translationLang, file.getOriginalFilename());
+            if(translateJobStatus.equals("SUBMITTED"))
+                res  = helper.getTranslatedFile(file.getOriginalFilename(), file.getOriginalFilename(), translationLang);
+        }
 
         InputStreamResource resource = new InputStreamResource(res);
 

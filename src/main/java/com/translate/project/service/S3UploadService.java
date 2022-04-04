@@ -4,6 +4,7 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
+import com.translate.project.constants.LanguageCodes;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -34,7 +35,9 @@ public class S3UploadService {
     @Value("${application.bucket.name}")
     private String bucketName;
 
-    private final String OUT_FOL = bucketName + "/outputFolder";
+    @Value("${application.output.bucket.name}")
+    private String oBucketName;
+
 
     /**
      * Upload file into AWS S3
@@ -49,7 +52,9 @@ public class S3UploadService {
             metadata.setContentLength(file.getSize());
             metadata.setContentType("docx");
             keyName = "inputFolder/" + keyName;
-            PutObjectResult t = amazonS3Client.putObject(bucketName, keyName, file.getInputStream(), metadata);
+            if(!isDocumentPresent(keyName)) {
+                PutObjectResult t = amazonS3Client.putObject(bucketName, keyName, file.getInputStream(), metadata);
+            }
             URL fileUrl = amazonS3Client.getUrl(bucketName, keyName);
             return fileUrl.toString();
         } catch (IOException ioe) {
@@ -64,17 +69,34 @@ public class S3UploadService {
         return "File not uploaded: " + keyName;
     }
 
-    public S3ObjectInputStream getTranslatedFileUrl(String url, String fileName) {
+    private boolean isDocumentPresent(String keyName) {
+        try {
+            return amazonS3Client.doesObjectExist(bucketName, keyName);
+        } catch (AmazonServiceException serviceException) {
+            logger.info("AmazonServiceException: " + serviceException.getMessage());
+            throw serviceException;
+        } catch (AmazonClientException clientException) {
+            logger.info("AmazonClientException Message: " + clientException.getMessage());
+            throw clientException;
+        }
+    }
+
+    public S3ObjectInputStream getTranslatedFileStream(String url, String fileName, String translatedLang) {
         try {
             String[] str = url.split("/");
-            AccessControlList acl = amazonS3Client.getObjectAcl(bucketName, str[3]+"/en."+fileName);
+            String langCode = LanguageCodes.valueOf(translatedLang.toUpperCase()).getLangCode();
+            StringBuilder key = new StringBuilder();
+            key.append(str[3]);
+            key.append("/" + langCode + ".");
+            key.append(fileName);
+
+            AccessControlList acl = amazonS3Client.getObjectAcl(oBucketName, key.toString());
             if(!acl.getGrantsAsList().get(0).getPermission().equals("Read")) {
-                amazonS3Client.setObjectAcl(bucketName, str[3]+"/en."+fileName, CannedAccessControlList.PublicRead);
+                amazonS3Client.setObjectAcl(oBucketName, key.toString(), CannedAccessControlList.PublicRead);
             }
 
-            S3Object object = amazonS3Client.getObject(new GetObjectRequest(bucketName, str[3]+"/en."+fileName));
+            S3Object object = amazonS3Client.getObject(new GetObjectRequest(oBucketName, key.toString()));
             S3ObjectInputStream stream = object.getObjectContent();
-//            getFIle(object.getObjectContent().getHttpRequest());
             return stream;
         } catch (AmazonServiceException serviceException) {
             logger.info("AmazonServiceException: " + serviceException.getMessage());
@@ -87,13 +109,5 @@ public class S3UploadService {
 
     }
 
-    public void getFIle(HttpRequestBase req) throws IOException {
-        HttpClient client = new DefaultHttpClient();
-        HttpResponse response = client.execute(req);
-
-//        HttpEntity entity = response.getEntity();
-//        File file = new File("file");
-
-    }
 
 }
